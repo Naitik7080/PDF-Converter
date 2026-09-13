@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact Sheet — Photos to PDF</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg: #f6f4ef;
+    --surface: #ffffff;
+    --surface-2: #eeeadf;
+    --border: #ded8ca;
+    --border-soft: #e7e2d5;
+    --text: #221f28;
+    --text-muted: #6c6879;
+    --text-faint: #9993a4;
+    --amber: #b8701f;
+    --amber-dim: #f2ddb8;
+    --sage: #327a54;
+    --red: #b8402f;
+    --radius: 10px;
+    --serif: 'Fraunces', serif;
+    --sans: 'Inter', sans-serif;
+    --mono: 'Roboto Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(184,112,31,0.08), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(50,122,84,0.06), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    line-height:1.5;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+  }
+  .wrap{
+    max-width:880px;
+    margin:0 auto;
+    padding:56px 24px 120px;
+  }
+  header.hero{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:24px;
+    margin-bottom:40px;
+    flex-wrap:wrap;
+  }
+  .hero-text h1{
+    font-family:var(--serif);
+    font-weight:500;
+    font-size:clamp(32px,5vw,46px);
+    letter-spacing:-0.01em;
+    margin:0 0 10px;
+    color:var(--text);
+  }
+  .hero-text p{
+    margin:0;
+    color:var(--text-muted);
+    font-size:15px;
+    max-width:38ch;
+  }
+  .roll-counter{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--text-faint);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:6px 14px;
+    white-space:nowrap;
+  }
+  .roll-counter b{color:var(--amber); font-weight:500;}
+
+  /* Dropzone */
+  .dropzone{
+    position:relative;
+    border:1.5px dashed var(--border);
+    border-radius:var(--radius);
+    background:var(--surface);
+    padding:36px 24px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .18s ease, background .18s ease;
+  }
+  .dropzone:hover{ border-color:#484555; }
+  .dropzone.dragover{
+    border-color:var(--amber);
+    background:linear-gradient(180deg, rgba(232,163,61,0.08), rgba(232,163,61,0.02));
+  }
+  .dropzone input[type=file]{ display:none; }
+  .dz-icon{
+    width:40px;height:40px;margin:0 auto 14px;
+    border-radius:50%;
+    border:1.5px solid var(--border);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--text-muted);
+  }
+  .dropzone.dragover .dz-icon{ border-color:var(--amber); color:var(--amber); }
+  .dz-title{ font-size:15px; font-weight:500; margin-bottom:4px; }
+  .dz-sub{ font-size:13px; color:var(--text-faint); }
+  .dz-sub button{
+    background:none;border:none;color:var(--amber);font:inherit;cursor:pointer;padding:0;
+    text-decoration:underline; text-underline-offset:2px;
+  }
+
+  /* Frame strip */
+  .strip-section{ margin-top:32px; }
+  .strip-head{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .strip-head .count{ font-size:13px; color:var(--text-muted); }
+  .strip-head .count b{ color:var(--text); font-weight:600; }
+  .clear-all{
+    background:none; border:none; color:var(--text-faint); font:inherit; font-size:13px;
+    cursor:pointer; padding:4px 0;
+  }
+  .clear-all:hover{ color:var(--red); }
+
+  .frame-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(150px,1fr));
+    gap:14px;
+  }
+  .frame{
+    position:relative;
+    background:var(--surface);
+    border:1px solid var(--border-soft);
+    border-radius:8px;
+    overflow:hidden;
+    cursor:grab;
+    transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  .frame:active{ cursor:grabbing; }
+  .frame.dragging{ opacity:0.35; }
+  .frame.drop-target{ box-shadow:0 0 0 2px var(--amber) inset; }
+  .frame-thumb{
+    aspect-ratio:1/1;
+    background:#e2ddd0;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+    border-bottom:1px solid var(--border-soft);
+  }
+  .frame-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .frame-foot{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:7px 9px;
+  }
+  .frame-num{ font-family:var(--mono); font-size:11px; color:var(--text-faint); letter-spacing:0.02em; }
+  .frame-actions{ display:flex; gap:2px; }
+  .icon-btn{
+    width:24px;height:24px; border:none; background:transparent; color:var(--text-faint);
+    display:flex; align-items:center; justify-content:center; border-radius:5px; cursor:pointer;
+    transition:background .15s, color .15s;
+  }
+  .icon-btn:hover{ background:var(--surface-2); color:var(--text); }
+  .icon-btn.danger:hover{ color:var(--red); }
+  .icon-btn:disabled{ opacity:0.25; cursor:default; }
+  .icon-btn:disabled:hover{ background:transparent; color:var(--text-faint); }
+
+  /* Empty state */
+  .empty-state{
+    text-align:center;
+    padding:34px 20px;
+    color:var(--text-faint);
+    font-size:13px;
+    border:1px dashed var(--border-soft);
+    border-radius:8px;
+    margin-top:14px;
+  }
+
+  /* Settings */
+  .settings{
+    margin-top:36px;
+    background:var(--surface);
+    border:1px solid var(--border-soft);
+    border-radius:var(--radius);
+    padding:22px 22px 8px;
+  }
+  .settings h2{
+    font-family:var(--serif);
+    font-weight:500;
+    font-size:19px;
+    margin:0 0 18px;
+  }
+  .field-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px 24px;
+    margin-bottom:18px;
+  }
+  .field{ margin-bottom:2px; }
+  .field label{
+    display:block; font-size:12.5px; color:var(--text-muted); margin-bottom:8px;
+  }
+  .segmented{
+    display:flex; border:1px solid var(--border); border-radius:7px; overflow:hidden;
+  }
+  .segmented button{
+    flex:1; background:transparent; border:none; color:var(--text-muted);
+    font:inherit; font-size:13px; padding:8px 6px; cursor:pointer;
+    border-right:1px solid var(--border);
+    transition:background .15s, color .15s;
+  }
+  .segmented button:last-child{ border-right:none; }
+  .segmented button.active{ background:var(--amber-dim); color:var(--amber); }
+  .segmented button:hover:not(.active){ background:var(--surface-2); color:var(--text); }
+
+  .name-field{ margin-bottom:20px; }
+  .name-field label{ display:block; font-size:12.5px; color:var(--text-muted); margin-bottom:8px; }
+  .name-input-wrap{
+    display:flex; align-items:center; border:1px solid var(--border); border-radius:7px;
+    background:var(--bg); overflow:hidden;
+  }
+  .name-input-wrap input{
+    flex:1; background:transparent; border:none; outline:none; color:var(--text);
+    font:inherit; font-size:14px; padding:10px 12px;
+  }
+  .name-input-wrap span{
+    color:var(--text-faint); font-size:13px; padding-right:12px; font-family:var(--mono);
+  }
+
+  /* Action bar */
+  .action-bar{
+    margin-top:28px;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  .btn{
+    font:inherit; font-size:14.5px; font-weight:600; border-radius:8px; border:none;
+    padding:13px 22px; cursor:pointer; display:inline-flex; align-items:center; gap:9px;
+    transition:transform .12s ease, background .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  .btn:active{ transform:translateY(1px); }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn:disabled:active{ transform:none; }
+  .btn-primary{ background:var(--amber); color:#fdf6ec; }
+  .btn-primary:hover:not(:disabled){ box-shadow:0 4px 18px rgba(184,112,31,0.28); }
+  .btn-success{ background:var(--sage); color:#f2fbf5; }
+  .btn-success:hover:not(:disabled){ box-shadow:0 4px 18px rgba(50,122,84,0.28); }
+  .btn-ghost{ background:transparent; color:var(--text-muted); border:1px solid var(--border); }
+  .btn-ghost:hover:not(:disabled){ color:var(--text); border-color:#484555; }
+
+  .status-line{
+    font-size:13px; color:var(--text-faint); margin-top:2px;
+  }
+  .status-line.warn{ color:var(--amber); }
+  .status-line.ok{ color:var(--sage); }
+
+  .spinner{
+    width:15px;height:15px; border-radius:50%;
+    border:2px solid rgba(255,255,255,0.35); border-top-color:#fdf6ec;
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* Toasts */
+  .toast-stack{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; gap:8px; z-index:50;
+    width:min(92vw,380px);
+  }
+  .toast{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:12px 14px;
+    border-radius:8px;
+    font-size:13.5px;
+    display:flex; align-items:center; gap:10px;
+    box-shadow:0 10px 30px rgba(34,31,40,0.14);
+    animation:toast-in .22s ease;
+  }
+  .toast.error{ border-color:rgba(217,112,95,0.5); }
+  .toast.success{ border-color:rgba(111,191,139,0.5); }
+  .toast-dot{ width:7px;height:7px;border-radius:50%; flex-shrink:0; background:var(--amber); }
+  .toast.error .toast-dot{ background:var(--red); }
+  .toast.success .toast-dot{ background:var(--sage); }
+  @keyframes toast-in{
+    from{ opacity:0; transform:translateY(8px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  footer.credit{
+    margin-top:60px;
+    text-align:center;
+    color:var(--text-faint);
+    font-size:12px;
+  }
+
+  @media (max-width:560px){
+    .field-row{ grid-template-columns:1fr; }
+    .action-bar{ flex-direction:column; align-items:stretch; }
+    .btn{ justify-content:center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <div class="hero-text">
+      <h1>Contact Sheet</h1>
+      <p>Turn a set of photos into one clean PDF, laid out and ordered exactly how you want.</p>
+    </div>
+    <div class="roll-counter"><b id="frameCountBadge">0</b> frames loaded</div>
+  </header>
+
+  <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Add photos">
+    <div class="dz-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v14M12 3l-5 5M12 3l5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+    </div>
+    <div class="dz-title">Drop photos here</div>
+    <div class="dz-sub">or <button type="button" id="browseBtn">choose files</button> — JPG, PNG or WebP</div>
+    <input type="file" id="fileInput" accept="image/png, image/jpeg, image/webp" multiple>
+  </div>
+
+  <section class="strip-section">
+    <div class="strip-head">
+      <div class="count"><b id="frameCountText">0</b> images selected</div>
+      <button class="clear-all" id="clearAllBtn" style="display:none;">Clear all</button>
+    </div>
+    <div class="frame-grid" id="frameGrid"></div>
+    <div class="empty-state" id="emptyState">No photos yet — add some above to start building your PDF.</div>
+  </section>
+
+  <section class="settings">
+    <h2>Page settings</h2>
+    <div class="field-row">
+      <div class="field">
+        <label>Page size</label>
+        <div class="segmented" id="pageSizeSeg">
+          <button data-value="a4" class="active">A4</button>
+          <button data-value="a5">A5</button>
+          <button data-value="letter">Letter</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Orientation</label>
+        <div class="segmented" id="orientationSeg">
+          <button data-value="portrait" class="active">Portrait</button>
+          <button data-value="landscape">Landscape</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Margin</label>
+        <div class="segmented" id="marginSeg">
+          <button data-value="0">None</button>
+          <button data-value="8" class="active">Small</button>
+          <button data-value="15">Medium</button>
+          <button data-value="25">Large</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Image quality</label>
+        <div class="segmented" id="qualitySeg">
+          <button data-value="0.5">Low</button>
+          <button data-value="0.78" class="active">Medium</button>
+          <button data-value="0.95">High</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="name-field">
+      <label>File name</label>
+      <div class="name-input-wrap">
+        <input type="text" id="pdfName" value="My Photos" maxlength="60">
+        <span>.pdf</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="action-bar">
+    <button class="btn btn-primary" id="convertBtn">
+      <span id="convertBtnLabel">Convert to PDF</span>
+    </button>
+    <button class="btn btn-success" id="downloadBtn" disabled>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+      Download PDF
+    </button>
+  </div>
+  <div class="status-line" id="statusLine">Add photos, then convert — nothing downloads until you tap "Download PDF".</div>
+
+  <footer class="credit">Built for a college project — everything happens in your browser, nothing is uploaded.</footer>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+(function(){
+  const state = {
+    frames: [],       // {id, file, dataUrl, name}
+    pdfBlobUrl: null, // set once a PDF has been built, cleared whenever frames/settings change
+    pdfDoc: null,
+    settings: { pageSize:'a4', orientation:'portrait', margin:8, quality:0.78 },
+    dragId: null
+  };
+
+  const MAX_FRAMES = 40;
+  let uid = 0;
+
+  const el = (id) => document.getElementById(id);
+  const dropzone = el('dropzone');
+  const fileInput = el('fileInput');
+  const browseBtn = el('browseBtn');
+  const frameGrid = el('frameGrid');
+  const emptyState = el('emptyState');
+  const clearAllBtn = el('clearAllBtn');
+  const frameCountBadge = el('frameCountBadge');
+  const frameCountText = el('frameCountText');
+  const convertBtn = el('convertBtn');
+  const convertBtnLabel = el('convertBtnLabel');
+  const downloadBtn = el('downloadBtn');
+  const statusLine = el('statusLine');
+  const pdfNameInput = el('pdfName');
+  const toastStack = el('toastStack');
+
+  function toast(message, type){
+    const t = document.createElement('div');
+    t.className = 'toast' + (type ? ' ' + type : '');
+    t.innerHTML = '<span class="toast-dot"></span><span>' + message + '</span>';
+    toastStack.appendChild(t);
+    setTimeout(() => {
+      t.style.transition = 'opacity .25s ease';
+      t.style.opacity = '0';
+      setTimeout(() => t.remove(), 260);
+    }, 3200);
+  }
+
+  function invalidatePdf(reason){
+    if (state.pdfBlobUrl){
+      URL.revokeObjectURL(state.pdfBlobUrl);
+    }
+    state.pdfBlobUrl = null;
+    state.pdfDoc = null;
+    downloadBtn.disabled = true;
+    if (state.frames.length){
+      statusLine.textContent = reason || 'Settings changed — convert again to refresh the PDF before downloading.';
+      statusLine.className = 'status-line warn';
+    } else {
+      statusLine.textContent = 'Add photos, then convert — nothing downloads until you tap "Download PDF".';
+      statusLine.className = 'status-line';
+    }
+  }
+
+  // ---------- Adding files ----------
+  browseBtn.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('click', (e) => { if (e.target === browseBtn) return; fileInput.click(); });
+  dropzone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+  fileInput.addEventListener('change', (e) => {
+    handleFiles(e.target.files);
+    fileInput.value = '';
+  });
+
+  ['dragenter','dragover'].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.add('dragover');
+    });
+  });
+  ['dragleave','drop'].forEach(evt => {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (evt === 'dragleave' && e.target !== dropzone) return;
+      dropzone.classList.remove('dragover');
+    });
+  });
+  dropzone.addEventListener('drop', (e) => {
+    if (e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+
+  function handleFiles(fileList){
+    const files = Array.from(fileList);
+    if (!files.length) return;
+
+    const accepted = ['image/jpeg','image/png','image/webp'];
+    let rejected = 0;
+
+    if (state.frames.length >= MAX_FRAMES){
+      toast('You already have the maximum of ' + MAX_FRAMES + ' images.', 'error');
+      return;
+    }
+
+    const room = MAX_FRAMES - state.frames.length;
+    let overflow = false;
+    files.slice(0, room).forEach(file => {
+      if (!accepted.includes(file.type)){ rejected++; return; }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        state.frames.push({ id: ++uid, name: file.name, dataUrl: ev.target.result });
+        invalidatePdf();
+        render();
+      };
+      reader.onerror = () => { rejected++; toast('Could not read ' + file.name, 'error'); };
+      reader.readAsDataURL(file);
+    });
+    if (files.length > room) overflow = true;
+
+    if (rejected){
+      toast(rejected + ' file' + (rejected>1?'s were':' was') + " skipped — file type not supported.", 'error');
+    }
+    if (overflow){
+      toast('Only ' + room + ' more image(s) could be added — limit is ' + MAX_FRAMES + '.', 'error');
+    }
+    if (!files.length){
+      toast('Please select at least one image.', 'error');
+    }
+  }
+
+  // ---------- Rendering the strip ----------
+  function render(){
+    frameGrid.innerHTML = '';
+    const count = state.frames.length;
+    frameCountBadge.textContent = count;
+    frameCountText.textContent = count;
+    emptyState.style.display = count ? 'none' : 'block';
+    clearAllBtn.style.display = count ? 'inline-block' : 'none';
+
+    state.frames.forEach((frame, idx) => {
+      const card = document.createElement('div');
+      card.className = 'frame';
+      card.draggable = true;
+      card.dataset.id = frame.id;
+
+      card.innerHTML = `
+        <div class="frame-thumb"><img src="${frame.dataUrl}" alt=""></div>
+        <div class="frame-foot">
+          <span class="frame-num">${String(idx+1).padStart(2,'0')} / ${String(count).padStart(2,'0')}</span>
+          <div class="frame-actions">
+            <button class="icon-btn" data-act="up" ${idx===0?'disabled':''} title="Move earlier" aria-label="Move earlier">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+            </button>
+            <button class="icon-btn" data-act="down" ${idx===count-1?'disabled':''} title="Move later" aria-label="Move later">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+            </button>
+            <button class="icon-btn danger" data-act="delete" title="Remove" aria-label="Remove">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>
+            </button>
+          </div>
+        </div>`;
+
+      card.querySelector('[data-act="up"]').addEventListener('click', () => moveFrame(idx, idx-1));
+      card.querySelector('[data-act="down"]').addEventListener('click', () => moveFrame(idx, idx+1));
+      card.querySelector('[data-act="delete"]').addEventListener('click', () => deleteFrame(frame.id));
+
+      card.addEventListener('dragstart', () => {
+        state.dragId = frame.id;
+        setTimeout(() => card.classList.add('dragging'), 0);
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        document.querySelectorAll('.frame.drop-target').forEach(f => f.classList.remove('drop-target'));
+      });
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (frame.id !== state.dragId) card.classList.add('drop-target');
+      });
+      card.addEventListener('dragleave', () => card.classList.remove('drop-target'));
+      card.addEventListener('drop', (e) => {
+        e.preventDefault();
+        card.classList.remove('drop-target');
+        if (state.dragId == null || state.dragId === frame.id) return;
+        const fromIdx = state.frames.findIndex(f => f.id === state.dragId);
+        const toIdx = state.frames.findIndex(f => f.id === frame.id);
+        moveFrame(fromIdx, toIdx);
+        state.dragId = null;
+      });
+
+      frameGrid.appendChild(card);
+    });
+  }
+
+  function moveFrame(from, to){
+    if (to < 0 || to >= state.frames.length || from === to) return;
+    const [moved] = state.frames.splice(from, 1);
+    state.frames.splice(to, 0, moved);
+    invalidatePdf();
+    render();
+  }
+
+  function deleteFrame(id){
+    state.frames = state.frames.filter(f => f.id !== id);
+    invalidatePdf();
+    render();
+  }
+
+  clearAllBtn.addEventListener('click', () => {
+    if (!state.frames.length) return;
+    state.frames = [];
+    invalidatePdf();
+    render();
+    toast('All photos cleared.');
+  });
+
+  // ---------- Settings ----------
+  function wireSegmented(containerId, key, isNumber){
+    const container = el(containerId);
+    container.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.settings[key] = isNumber ? parseFloat(btn.dataset.value) : btn.dataset.value;
+        invalidatePdf();
+      });
+    });
+  }
+  wireSegmented('pageSizeSeg', 'pageSize', false);
+  wireSegmented('orientationSeg', 'orientation', false);
+  wireSegmented('marginSeg', 'margin', true);
+  wireSegmented('qualitySeg', 'quality', true);
+
+  pdfNameInput.addEventListener('input', () => invalidatePdf());
+
+  // ---------- Conversion ----------
+  function loadImage(dataUrl){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+
+  function toJpeg(img, quality){
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    return canvas.toDataURL('image/jpeg', quality);
+  }
+
+  const PAGE_MM = {
+    a4: { w: 210, h: 297 },
+    a5: { w: 148, h: 210 },
+    letter: { w: 215.9, h: 279.4 }
+  };
+
+  async function buildPdf(){
+    if (!state.frames.length){
+      toast('Please select an image first.', 'error');
+      return;
+    }
+
+    convertBtn.disabled = true;
+    downloadBtn.disabled = true;
+    convertBtnLabel.innerHTML = '<span class="spinner"></span> Creating PDF…';
+    statusLine.textContent = 'Building your PDF from ' + state.frames.length + ' photo' + (state.frames.length>1?'s':'') + '…';
+    statusLine.className = 'status-line warn';
+
+    try {
+      const { jsPDF } = window.jspdf;
+      const { pageSize, orientation, margin, quality } = state.settings;
+      const base = PAGE_MM[pageSize];
+      const pageW = orientation === 'landscape' ? base.h : base.w;
+      const pageH = orientation === 'landscape' ? base.w : base.h;
+
+      const doc = new jsPDF({ orientation, unit: 'mm', format: pageSize === 'letter' ? [pageW,pageH] : pageSize });
+
+      for (let i = 0; i < state.frames.length; i++){
+        const frame = state.frames[i];
+        const img = await loadImage(frame.dataUrl);
+        const jpeg = toJpeg(img, quality);
+
+        const usableW = pageW - margin * 2;
+        const usableH = pageH - margin * 2;
+        const ratio = Math.min(usableW / img.naturalWidth, usableH / img.naturalHeight);
+        const drawW = img.naturalWidth * ratio;
+        const drawH = img.naturalHeight * ratio;
+        const x = (pageW - drawW) / 2;
+        const y = (pageH - drawH) / 2;
+
+        if (i > 0) doc.addPage(pageSize === 'letter' ? [pageW,pageH] : pageSize, orientation);
+        doc.addImage(jpeg, 'JPEG', x, y, drawW, drawH);
+      }
+
+      const blob = doc.output('blob');
+      if (state.pdfBlobUrl) URL.revokeObjectURL(state.pdfBlobUrl);
+      state.pdfBlobUrl = URL.createObjectURL(blob);
+      state.pdfDoc = doc;
+
+      downloadBtn.disabled = false;
+      statusLine.textContent = 'Your PDF is ready — tap "Download PDF" to save it.';
+      statusLine.className = 'status-line ok';
+      toast(state.frames.length + '-page PDF is ready to download.', 'success');
+    } catch (err) {
+      console.error(err);
+      toast('Something went wrong while building the PDF.', 'error');
+      statusLine.textContent = 'Conversion failed — please try again.';
+      statusLine.className = 'status-line warn';
+    } finally {
+      convertBtn.disabled = false;
+      convertBtnLabel.textContent = 'Convert to PDF';
+    }
+  }
+
+  convertBtn.addEventListener('click', buildPdf);
+
+  // Downloading is the ONLY action that saves the file — conversion never triggers a save on its own.
+  downloadBtn.addEventListener('click', () => {
+    if (!state.pdfBlobUrl){
+      toast('Convert your photos to a PDF first.', 'error');
+      return;
+    }
+    const rawName = (pdfNameInput.value || 'My Photos').trim().replace(/[\\/:*?"<>|]/g, '') || 'My Photos';
+    const a = document.createElement('a');
+    a.href = state.pdfBlobUrl;
+    a.download = rawName + '.pdf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast('Downloading ' + rawName + '.pdf', 'success');
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
